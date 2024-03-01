@@ -1,0 +1,2 @@
+# AlgoTrudneObliczeniowo
+Algorytmy trudne obliczeniowo
