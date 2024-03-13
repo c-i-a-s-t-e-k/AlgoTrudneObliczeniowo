@@ -1,3 +1,18 @@
 # ninja log v5
-0	190	1709722664228694029	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7
-191	232	1709722664268693359	project	a14e0dc83ba2abdf
+1	185	1710350689439467035	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7
+1	177	1710350707907070777	CMakeFiles/project.dir/carPark.cpp.o	65f07f7433533c5e
+0	19	1710350958581623664	build.ninja	1ac050f018e9d6c3
+192	242	1710349801488632267	project	7b4812dee25e1129
+1	186	1710349801436633079	CMakeFiles/project.dir/Point.cpp.o	7985ad0832f95fb9
+1	15	1710349666898598781	CMakeFiles/project.dir/samples.cpp.o	8a03e2c8af12cad4
+0	20	1710350958581623664	build.ninja	1ac050f018e9d6c3
+1	183	1710350958777619363	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7
+1	178	1710350975401254386	CMakeFiles/project.dir/carPark.cpp.o	65f07f7433533c5e
+0	183	1710350975405254297	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7
+1	178	1710350993340860080	CMakeFiles/project.dir/carPark.cpp.o	65f07f7433533c5e
+1	178	1710350993340860080	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7
+0	184	1710351010884474056	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7
+1	181	1710351032300002311	CMakeFiles/project.dir/carPark.cpp.o	65f07f7433533c5e
+1	184	1710351032300002311	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7
+184	229	1710351032344001340	project	7b4812dee25e1129
+0	177	1710351039903834672	CMakeFiles/project.dir/main.cpp.o	f269eff0525babf7

@@ -1,6 +1,17 @@
 #include <iostream>
+#include "carPark.h"
 
+
+char sample1[5][10]  = {
+        {'#', '#', '#', '#', '#', '#', '#', '#', '#', '#'},
+        {'#', '.', '.', '.', '.', 'a', 'b', 'c', '.', '#'},
+        {'#', '.', '.', '.', '.', 'x', 'x', 'x', '.', '#'},
+        {'#', '0', '0', '.', '.', 'y', 'y', 'y', '.', '.'},
+        {'#', '#', '#', '#', '#', '#', '#', '#', '#', '#'}
+};
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+    int i;
+    std::cout << "Hello, World!" << i << std::endl;
+    carPark(sample1, 10);
     return 0;
 }
