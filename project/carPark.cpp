@@ -1,10 +1,10 @@
 //
 // Created by ciastek on 13/03/24.
 //
-#include "Point.cpp"
-#include<iostream>
-template<size_t rows, size_t cols>
-Point get_exit(char (&park)[rows][cols]) {
+#include "carPark.h"
+#include "Point.h"
+
+Point get_exit(char *park[], size_t rows, size_t cols){
     Point exit = Point(-1, -1);
 
     for (int i = 0; i < cols; i++) {
@@ -31,9 +31,9 @@ Point get_exit(char (&park)[rows][cols]) {
     return exit;
 }
 
-template<size_t rows, size_t cols>
-void carPark(char (&park)[rows][cols], int n){
-    Point exit = get_exit(park);
+void carPark(char **park, size_t rows, size_t cols, int n){
+
+    Point exit = get_exit(park, rows, cols);
 
     std::cout << "exit: "<< exit << "\n";
 }

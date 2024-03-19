@@ -4,7 +4,9 @@ project(project)
 set(CMAKE_CXX_STANDARD 17)
 
 add_executable(project main.cpp
+        carPark.h
         carPark.cpp
         Point.cpp
-        carPark.h
+        map.cpp
+        Point.h
 )

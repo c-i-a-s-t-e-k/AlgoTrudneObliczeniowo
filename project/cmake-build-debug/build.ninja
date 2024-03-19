@@ -67,6 +67,12 @@ build CMakeFiles/project.dir/Point.cpp.o: CXX_COMPILER__project_unscanned_Debug 
   OBJECT_DIR = CMakeFiles/project.dir
   OBJECT_FILE_DIR = CMakeFiles/project.dir
 
+build CMakeFiles/project.dir/map.cpp.o: CXX_COMPILER__project_unscanned_Debug /home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/map.cpp || cmake_object_order_depends_target_project
+  DEP_FILE = CMakeFiles/project.dir/map.cpp.o.d
+  FLAGS = -g -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/project.dir
+  OBJECT_FILE_DIR = CMakeFiles/project.dir
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target project
@@ -75,7 +81,7 @@ build CMakeFiles/project.dir/Point.cpp.o: CXX_COMPILER__project_unscanned_Debug 
 #############################################
 # Link the executable project
 
-build project: CXX_EXECUTABLE_LINKER__project_Debug CMakeFiles/project.dir/main.cpp.o CMakeFiles/project.dir/carPark.cpp.o CMakeFiles/project.dir/Point.cpp.o
+build project: CXX_EXECUTABLE_LINKER__project_Debug CMakeFiles/project.dir/main.cpp.o CMakeFiles/project.dir/carPark.cpp.o CMakeFiles/project.dir/Point.cpp.o CMakeFiles/project.dir/map.cpp.o
   FLAGS = -g
   OBJECT_DIR = CMakeFiles/project.dir
   POST_BUILD = :
