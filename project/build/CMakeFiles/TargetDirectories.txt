@@ -1,0 +1,6 @@
+/home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/build/CMakeFiles/CarPark_run.dir
+/home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/build/CMakeFiles/edit_cache.dir
+/home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/build/CMakeFiles/rebuild_cache.dir
+/home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/build/CarPark/CMakeFiles/CarPark.dir
+/home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/build/CarPark/CMakeFiles/edit_cache.dir
+/home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/build/CarPark/CMakeFiles/rebuild_cache.dir

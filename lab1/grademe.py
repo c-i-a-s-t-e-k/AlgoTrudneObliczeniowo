@@ -40,7 +40,7 @@ graphs = [
 
 
 
-from dimacs import *
+from lib.dimacs import *
 from sys    import *
 
 

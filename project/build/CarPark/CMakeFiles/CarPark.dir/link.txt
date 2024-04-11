@@ -1,0 +1,2 @@
+/usr/bin/ar qc libCarPark.a CMakeFiles/CarPark.dir/Car.cpp.o CMakeFiles/CarPark.dir/Map.cpp.o CMakeFiles/CarPark.dir/Point.cpp.o CMakeFiles/CarPark.dir/Solver.cpp.o
+/usr/bin/ranlib libCarPark.a

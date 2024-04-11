@@ -1,4 +1,4 @@
-import dimacs
+import lib.dimacs as dimacs
 from itertools import *
 
 # graph list

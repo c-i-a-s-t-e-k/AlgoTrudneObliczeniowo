@@ -1,0 +1,8 @@
+# ninja log v5
+0	444	1711125733300320272	CMakeFiles/project.dir/home/ciastek/Dokumenty/studia/AlgoTrudneObliczeniowo/project/main.cpp.o	385e02966375ad52
+0	665	1711125733520315865	CMakeFiles/project.dir/Solver.cpp.o	91c410a84cc6768f
+2	440	1711125733296320352	CMakeFiles/project.dir/Car.cpp.o	9c588eba0080afa2
+0	28	1711128143415319145	build.ninja	c46b3c37b3f66489
+665	789	1711125733644313381	project	5f3be76deb833112
+1	478	1711125733336319551	CMakeFiles/project.dir/Map.cpp.o	d96b0b2d7ac82241
+1	425	1711125733280320672	CMakeFiles/project.dir/Point.cpp.o	f437e146995861dd
