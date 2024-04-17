@@ -2,11 +2,60 @@
 #include <cstdlib>
 #include <list>
 #include <utility>
+#include <stdexcept>
+#include<tuple>
+#include <string>
+
 
 enum Orientation {
     VERTICAL,
     HORIZONTAL
 };
+
+enum Direction {
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT
+};
+
+char get_char(Direction direction) {
+    switch (direction) {
+        case UP:
+            return 'U';
+        case DOWN:
+            return 'D';
+        case LEFT:
+            return 'L';
+        case RIGHT:
+            return 'R';
+    }
+    throw std::invalid_argument("no such direction");
+}
+char get_orient(Direction direction) {
+    switch (direction) {
+        case UP:
+        case DOWN:
+            return HORIZONTAL;
+        case LEFT:
+        case RIGHT:
+            return VERTICAL;
+    }
+    throw std::invalid_argument("no such direction");
+}
+std::pair<int, int> get_iterator(Direction direction) {
+    switch (direction) {
+        case UP:
+            return std::pair(0, -1);
+        case DOWN:
+            return std::pair(0, 1);
+        case LEFT:
+            return std::pair(-1, 0);
+        case RIGHT:
+            return std::pair(1, 0);
+    }
+    throw std::invalid_argument("no such direction");
+}
 
 int **
 create_map(char **map_str, int height, int width, std::pair<int, int> &red_car_position, Orientation &orientation) {
@@ -82,6 +131,75 @@ void clear_map(int **map, int height) {
         delete[] map;
         map = nullptr;
     }
+}
+
+int **map_copy(int **map_source, int height, int width) {
+    int **map = new int *[height];
+    for (int i = 0; i < height; i++) {
+        map[i] = new int[width];
+        for (int j = 0; j < width; j++) {
+            map[i][j] = map_source[i][j];
+        }
+    }return map;
+}
+
+std::pair<int, int> get_car_to_move(int **map, int height, int width, int X, int Y, Direction dir, int L) {
+    int car_id = map[Y][X];
+    auto iterator = get_iterator(dir);
+    int curr_place_id;
+    for (int i = 0; i < L; i++) {
+        X += iterator.first;
+        Y += iterator.second;
+        curr_place_id = map[Y][X];
+        if (curr_place_id == car_id) {
+            L++;
+            continue;
+        }
+        if (curr_place_id == 0) continue;
+        if (curr_place_id == -2) throw std::runtime_error("car hit obstacle");
+        return std::pair(X, Y);
+    }
+    return std::pair(-1, -1);
+}
+
+std::list<std::pair<Direction, int>> get_possible_moves(
+        int **map, int height, int width, int X, int Y
+);
+
+std::tuple<int **, int, std::list<std::string>>
+make_move(int **map_source, int height, int width, int X, int Y, Direction dir, int L, int in_moves) {
+    std::list<std::string> moves;
+    if (in_moves <= 0) return {nullptr, INT16_MAX, moves};
+    int **map = nullptr;
+    int map_score = INT16_MAX;
+    auto next_car = get_car_to_move(map_source, height, width, X, Y, dir, L);
+
+    while (next_car.first != -1) {
+        std::list<std::string> tmp_moves;
+//        find best move
+        for(std::pair<Direction, int> move : get_possible_moves(
+                map_source, height, width, next_car.first, next_car.second
+                )){
+            auto tmp_tuple = make_move(
+                    map_source, height, width, next_car.first, next_car.second, move.first, move.second, in_moves -1
+                    );
+            if(std::get<1>(tmp_tuple) < map_score) {
+                clear_map(map, height);
+                map = std::get<0>(tmp_tuple);
+                map_score = std::get<1>(tmp_tuple);
+                tmp_moves = std::get<2>(tmp_tuple);
+            } else{
+                clear_map(std::get<0>(tmp_tuple), height);
+                std::get<2>(tmp_tuple).clear();
+            }
+        }
+        throw std::runtime_error("do move not implemented");
+
+    }
+    moves.push_back(
+            "" + std::to_string(X) + " " + std::to_string(Y) + " " + get_char(dir) + " " + std::to_string(L)
+    );
+    return {nullptr, 0, moves};
 }
 
 int main(int argc, char *argv[]) {
