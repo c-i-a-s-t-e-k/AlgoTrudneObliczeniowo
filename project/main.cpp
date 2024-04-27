@@ -19,11 +19,23 @@ enum Direction {
     LEFT,
     RIGHT
 };
+
 void set_car_pos(int &X, int &Y, Orientation orientation, int **map);
-int ** create_map(char **map_str, int height, int width, std::pair<int, int> &red_car_position, Orientation &orientation);
+
+int **
+create_map(char **map_str, int height, int width, std::pair<int, int> &red_car_position, Orientation &orientation);
+
+std::list<std::tuple<int **, int, std::list<std::string>>> get_posible_paths(
+        const std::list<std::tuple<int **, int, std::list<std::string>>> &roots, int height,
+        int width, int X, int Y, Direction dir, int L, int in_moves
+);
+
+std::tuple<int **, int, std::list<std::string>> make_move(
+        int **map_source, int height, int width, int X, int Y, Direction dir, int L, int in_moves
+);
 
 
-Direction oposite_direction(Direction direction){
+Direction oposite_direction(Direction direction) {
     switch (direction) {
         case UP:
             return DOWN;
@@ -51,7 +63,8 @@ char get_char(Direction direction) {
     throw std::invalid_argument("no such direction");
 }
 
-Orientation get_car_orient(int** map, int car_id, int X, int Y){
+Orientation get_car_orient(int **map, int X, int Y) {
+    int car_id = map[Y][X];
     if (car_id == map[Y + 1][X] || car_id == map[Y - 1][X]) return HORIZONTAL;
     if (car_id == map[Y][X + 1] || car_id == map[Y][X - 1]) return VERTICAL;
     throw std::runtime_error("cannot find car orientation");
@@ -144,13 +157,6 @@ create_map(char **map_str, int height, int width, std::pair<int, int> &red_car_p
             map[i++][j] = current_map_index;
         current_map_index++;
     }
-//    print map
-//    for (int i = 0; i < height; i++) {
-//        for (int j = 0; j < width; j++)
-//            std::cout<<map[i][j]<<" ";
-//        std::cout<<std::endl;
-//    }
-
     return map;
 }
 
@@ -178,7 +184,7 @@ int **map_copy(int **map_source, int height, int width) {
     return map;
 }
 
-std::pair<int, int> get_car_to_move(int **map, int height, int width, int X, int Y, Direction dir, int L) {
+std::pair<int, int> get_car_to_move(int **map, int X, int Y, Direction dir, int L) {
     int car_id = map[Y][X];
     auto iterator = get_iterator(dir);
     int curr_place_id;
@@ -193,7 +199,7 @@ std::pair<int, int> get_car_to_move(int **map, int height, int width, int X, int
         if (curr_place_id == 0) continue;
         if (curr_place_id == -2)
             throw std::runtime_error("car hit obstacle");
-        set_car_pos(X, Y, get_car_orient(map , map[Y][X], X, Y), map);
+        set_car_pos(X, Y, get_car_orient(map, X, Y), map);
         return {X, Y};
     }
     return {-1, -1};
@@ -216,51 +222,79 @@ int car_len(Orientation orient, int X, int Y, int **map) {
 
 // can optimize
 std::list<std::pair<Direction, int>> get_possible_moves(
-        int **map, int height, int width, int X, int Y
+        int **map, int height, int width, int X, int Y, std::pair<int, int> hit_point
 ) {
     int car_id = map[Y][X];
-    Orientation orient = get_car_orient(map , car_id, X, Y);
+    Orientation orient = get_car_orient(map, X, Y);
+    int hit = orient == VERTICAL ? hit_point.first : hit_point.second;
+    int axis = orient == VERTICAL ? X : Y;
+    Direction prev_dir = orient == VERTICAL ? LEFT : UP;
+    Direction post_dir = orient == VERTICAL ? RIGHT : DOWN;
     std::list<std::pair<Direction, int>> moves;
     Direction dir;
+    std::pair<int, int> obstacle_bound = {0, -1};
 
     int car_length = car_len(orient, X, Y, map);
+//    calculating bounds
     if (orient == VERTICAL) {
+        obstacle_bound.second = width - 1;
         dir = LEFT;
-        for (int i = 1; i < width - car_length; i++) {
+        for (int i = 1; i < width - 1; i++) {
             if (i == X) {
+                i += car_length - 1;
                 dir = RIGHT;
                 continue;
             }
             if (map[Y][i] == -2) {
-                switch (dir) {
-                    case LEFT:
-                        moves.clear();
-                        continue;
-                    case RIGHT:
-                        return moves;
+                if (dir == LEFT) {
+                    obstacle_bound.first = i;
+                    continue;
+                } else {
+                    obstacle_bound.second = i;
+                    break;
                 }
             }
-            moves.emplace_back(dir, abs(i - X));
+            if (map[Y][i] != 0 && get_car_orient(map, i, Y) == VERTICAL) {
+                int other_car_len = car_len(VERTICAL, i, Y, map);
+                i += other_car_len - 1;
+                if (dir == LEFT)
+                    obstacle_bound.first += other_car_len;
+                else obstacle_bound.second -= other_car_len;
+            }
         }
-    } else if (orient == HORIZONTAL) {
+    } else {
+        obstacle_bound.second = height - 1;
         dir = UP;
-        for (int i = 1; i < height - car_length; i++) {
+        for (int i = 1; i < height - 1; i++) {
             if (i == Y) {
+                i += car_length - 1;
                 dir = DOWN;
                 continue;
             }
             if (map[i][X] == -2) {
-                switch (dir) {
-                    case UP:
-                        moves.clear();
-                        continue;
-                    case DOWN:
-                        return moves;
+                if (dir == UP) {
+                    obstacle_bound.first = i;
+                    continue;
+                } else {
+                    obstacle_bound.second = i;
+                    break;
                 }
             }
-            moves.emplace_back(dir, abs(i - Y));
+            if (map[i][X] != 0 && get_car_orient(map, i, Y) == HORIZONTAL) {
+                int other_car_len = car_len(HORIZONTAL, X, i, map);
+                i += other_car_len - 1;
+                if (dir == UP)
+                    obstacle_bound.first += other_car_len;
+                else obstacle_bound.second -= other_car_len;
+            }
         }
     }
+//    collecting moves
+    for (int i = obstacle_bound.first + 1; i < hit - car_length + 1; i++)
+        moves.emplace_back(prev_dir, axis - i);
+    for (int i = hit+1; i < obstacle_bound.second - car_length + 1; i++)
+        moves.emplace_back(post_dir, i - axis);
+
     return moves;
 }
 
@@ -297,12 +331,65 @@ void _make_move(int **map, int X, int Y, Direction dir, int L, int car_id) {
     }
 }
 
+std::pair<int, int> get_hit_point(int** map, int X, int Y, std::pair<int, int> next_car){
+    Orientation prev_orient = get_car_orient(map, X, Y);
+    Orientation next_orient = get_car_orient(map, next_car.first, next_car.second);
+    if (prev_orient == next_orient) throw std::runtime_error("you will try do invalid moves");
+    return prev_orient == VERTICAL ? std::pair{X, next_car.second} : std::pair{next_car.first, Y};
+}
+
 void set_car_pos(int &X, int &Y, Orientation orientation, int **map) {
     int car_id = map[Y][X];
     if (orientation == HORIZONTAL)
         while (map[Y - 1][X] == car_id) Y--;
     else if (orientation == VERTICAL)
         while (map[Y][X - 1] == car_id) X--;
+}
+
+std::list<std::tuple<int **, int, std::list<std::string>>> get_posible_paths
+        (std::list<std::tuple<int **, int, std::list<std::string>>> &roots, int height, int width, int X, int Y,
+         Direction dir, int L, int moves) {
+    std::list<std::tuple<int **, int, std::list<std::string>>> paths;
+    int **map;
+    int score, car_id;
+    std::list<std::string> moves_list;
+    for (auto root: roots) {
+        if (std::get<1>(root) <= moves) {
+            map = std::get<0>(root);
+            score = std::get<1>(root);
+            moves_list = std::get<2>(root);
+            car_id = map[Y][X];
+            auto next_car = get_car_to_move(map, X, Y, dir, L);
+            if (next_car.first != -1) {
+                auto hit_point = get_hit_point(map, X, Y, next_car);
+                for (auto possible_move: get_possible_moves(map, height, width, next_car.first, next_car.second, hit_point)) {
+                    std::list<std::tuple<int **, int, std::list<std::string>>> new_root;
+                    std::list<std::string> moves_list_copy;
+                    std::copy(moves_list.begin(), moves_list.end(), std::back_inserter(moves_list_copy));
+                    new_root.emplace_back(map_copy(map, height, width), score, moves_list_copy);
+                    auto new_paths = get_posible_paths(new_root, height, width, next_car.first, next_car.second,
+                                                       possible_move.first, possible_move.second, moves);
+                    paths.splice(paths.end(), new_paths);
+                }
+                clear_map(map, height);
+                moves_list.clear();
+            } else {
+                _make_move(map, X, Y, dir, L, car_id);
+                score += 1;
+                moves_list.push_back(
+                        "" + std::to_string(X) + " " + std::to_string(Y) + " " + get_char(dir) + " " +
+                        std::to_string(L)
+                );
+                paths.emplace_back(map, score, moves_list);
+            }
+        } else {
+            clear_map(std::get<0>(root), height);
+            std::get<2>(root).clear();
+        }
+    }
+    roots.clear();
+
+    return paths;
 }
 
 std::tuple<int **, int, std::list<std::string>> make_move(
@@ -317,26 +404,35 @@ std::tuple<int **, int, std::list<std::string>> make_move(
     set_car_pos(X, Y, orient, map);
     std::cout << "car:" << map[Y][X] << "\t" << get_char(dir) << " " << L << std::endl;
     std::pair<int, int> car_cleared;
-    auto next_car = get_car_to_move(map_source, height, width, X, Y, dir, L);
+    auto next_car = get_car_to_move(map_source, X, Y, dir, L);
+    std::list<std::string> tmp_moves;
+    int tmp_score = INT16_MAX;
+    int **tmp_map = nullptr;
 //    clear road
     while (next_car.first != -1) {
         in_moves--;
 //        find best move
-        std::list<std::string> tmp_moves;
-        int tmp_score = INT16_MAX;
-        int ** tmp_map = nullptr;
+        auto hit_point = get_hit_point(map, X, Y, next_car);
         for (std::pair<Direction, int> move: get_possible_moves(
-                map, height, width, next_car.first, next_car.second
+                map, height, width, next_car.first, next_car.second, hit_point
         )) {
             auto tmp_tuple = make_move(
                     map, height, width, next_car.first, next_car.second, move.first, move.second, in_moves
             );
-            if (std::get<1>(tmp_tuple) < tmp_score) {
-                if(tmp_map != nullptr)
+            if (std::get<1>(tmp_tuple) < INT16_MAX) {
+                if (tmp_map != nullptr)
                     clear_map(tmp_map, height);
                 tmp_map = std::get<0>(tmp_tuple);
                 tmp_score = std::get<1>(tmp_tuple);
                 tmp_moves = std::get<2>(tmp_tuple);
+
+                auto tmp_pos = find_car(tmp_map, height, width, this_car_id, {X, Y}, orient);
+                if (orient == HORIZONTAL)
+                    L -= (tmp_pos.second - Y);
+                else if (orient == VERTICAL)
+                    L -= (tmp_pos.first - X);
+                int tmp_X = tmp_pos.first;
+                int tmp_Y = tmp_pos.second;
             } else {
                 clear_map(std::get<0>(tmp_tuple), height);
                 std::get<2>(tmp_tuple).clear();
@@ -357,7 +453,7 @@ std::tuple<int **, int, std::list<std::string>> make_move(
         Y = tmp_pos.second;
 
         car_cleared = next_car;
-        next_car = get_car_to_move(map, height, width, X, Y, dir, L);
+        next_car = get_car_to_move(map, X, Y, dir, L);
         if (car_cleared == next_car) return {nullptr, INT16_MAX, moves};
 
     }
@@ -410,10 +506,10 @@ int main(int argc, char *argv[]) {
         }
     }
     std::cout << "\033[34m";
-    std::cout << width<< " " << height << " " << moves << std::endl;
+    std::cout << width << " " << height << " " << moves << std::endl;
     print_map(map, height, width);
     std::cout << "\033[0m";
-    auto res = make_move(map, height, width, start_pos.first, start_pos.second, dir_to_move, L-1, moves);
+    auto res = make_move(map, height, width, start_pos.first, start_pos.second, dir_to_move, L - 1, moves);
     std::cout << "\033[34m" << (std::get<1>(res)) << "\033[0m" << std::endl;
     for (const auto &move: std::get<2>(res))
         std::cout << "\033[34m" << move << "\033[0m" << std::endl;
