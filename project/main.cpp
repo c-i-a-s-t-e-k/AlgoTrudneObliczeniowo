@@ -15,7 +15,8 @@ enum Orientation {
 enum PathState {
     GOOD,
     NOT_ENOUGH_MOVES,
-    NEED_TO_CYCLE_CAR_MOVE
+    NEED_TO_CYCLE_CAR_MOVE,
+    CAN_NOT_MOVE_HERE
 };
 
 class MapScored {
@@ -69,6 +70,12 @@ public:
         this->first = first;
         this->second = second;
     }
+};
+
+struct triplet {
+    Direction dir;
+    int L;
+    pair car_pos;
 };
 
 class CarsInfo {
@@ -338,7 +345,7 @@ int **map_copy(int **map_source, int height, int width) {
     return map;
 }
 
-std::vector<pair> get_cars_to_move(int **map, int X, int Y, Direction dir, int L, CarsInfo info) {
+std::vector<pair> get_cars_to_move(int **map, int X, int Y, Direction dir, int L, CarsInfo &info) {
     std::vector<pair> res;
     int car_id = map[Y][X];
     auto iterator = get_iterator(dir);
@@ -354,8 +361,9 @@ std::vector<pair> get_cars_to_move(int **map, int X, int Y, Direction dir, int L
         if (curr_place_id == 0) continue;
         if (curr_place_id == -2)
             throw std::runtime_error("car hit obstacle");
-        set_car_pos(X, Y, info.get_car_orient(map[Y][X]), map);
-        res.emplace_back(X, Y);
+        int new_X = X, new_Y = Y;
+        set_car_pos(new_X, new_Y, info.get_car_orient(map[Y][X]), map);
+        res.emplace_back(new_X, new_Y);
     }
     return res;
 }
@@ -366,7 +374,7 @@ bool is_road_free(int **map, pair start, pair end, Orientation orient) {
     if (orient == VERTICAL) {
         a = start.first < end.first ? 1 : -1;
         for (int i = start.first; i <= end.first; i += a)
-            if (map[i][start.second] != 0 && map[i][start.second] != car_id) return false;
+            if (map[start.second][i] != 0 && map[start.second][i] != car_id) return false;
     } else {
         a = start.second < end.second ? 1 : -1;
         for (int i = start.second; i <= end.second; i += a)
@@ -377,7 +385,7 @@ bool is_road_free(int **map, pair start, pair end, Orientation orient) {
 
 // can optimize
 std::list<pair_dir_int> get_possible_moves(
-        int **map, int height, int width, int X, int Y, pair hit_point, CarsInfo info
+        int **map, int height, int width, int X, int Y, pair hit_point, CarsInfo &info
 ) {
     int car_id = map[Y][X];
     Orientation orient = info.get_car_orient(car_id);
@@ -472,7 +480,8 @@ find_car(int **map, int height, int width, int car_id, pair prev_pos, Orientatio
     throw std::runtime_error("car not found");
 }
 
-void _make_move(int **map, int X, int Y, Direction dir, int L, int car_id) {
+void _make_move(int **map, int X, int Y, Direction dir, int L) {
+    int car_id = map[Y][X];
     pair iterator = get_iterator(dir);
     int fut_X = X + L * iterator.first;
     int fut_Y = Y + L * iterator.second;
@@ -491,7 +500,7 @@ void _make_move(int **map, int X, int Y, Direction dir, int L, int car_id) {
     }
 }
 
-pair get_hit_point(int **map, int X, int Y, pair next_car, CarsInfo info) {
+pair get_hit_point(int **map, int X, int Y, pair next_car, CarsInfo &info) {
     Orientation prev_orient = info.get_car_orient(map[Y][X]);
     Orientation next_orient = info.get_car_orient(map[next_car.second][next_car.first]);
     if (prev_orient == next_orient) throw std::runtime_error("you will try do invalid moves");
@@ -530,16 +539,48 @@ void fix_car_pos(int **map, int height, int width, int &X, int &Y, Direction &di
     }
 }
 
-std::list<MapScored>
-all_paths(int **map, int height, int width, CarsInfo info, int X, int Y, Direction dir, int L, int score,
-          std::list<std::string> list_moves, int moves, std::unordered_set<int> cars_before) {
-    auto cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
+std::list<pair_dir_int> get_no_collision_moves(int **map, int X, int Y, CarsInfo &info) {
+    int car_id = map[Y][X];
+    int car_len = info.get_car_len(car_id);
+    Orientation orientation = info.get_car_orient(car_id);
+    int i;
+    std::list<pair_dir_int> moves;
+    if (orientation == VERTICAL) {
+        i = X;
+        while (map[Y][--i] == 0)
+            moves.emplace_back(LEFT, X - i);
+        i = X;
+        while (map[Y][++i + car_len - 1] == 0)
+            moves.emplace_back(RIGHT, i - X);
+    } else {
+        i = Y;
+        while (map[--i][X] == 0)
+            moves.emplace_back(UP, Y - i);
+        i = Y;
+        while (map[++i + car_len - 1][X] == 0)
+            moves.emplace_back(DOWN, i - Y);
+    }
+    return moves;
+}
 
-//    sprawdzenie czy jakieś auto  da się przesunąć na "bezpieczne miejsce"
+std::list<MapScored>
+all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direction dir, int L, int score,
+          std::list<std::string> list_moves, int moves, std::unordered_set<int> cars_before) {
+
+    auto cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
+    cars_before.insert(map[Y][X]);
+
+    //  not enough moves to clear road
+    if (cars_to_move.size() + score > moves) {
+        clear_map(map, height);
+        list_moves.clear();
+        return {{map, INT16_MAX, NOT_ENOUGH_MOVES}};
+    }
+    //    sprawdzenie czy jakieś auto  da się przesunąć na "bezpieczne miejsce"
     for (auto car_pos: cars_to_move) {
         int other_car_id = car_pos.get(map);
-//        edge cond - cycle moves
-        if (cars_before.find(other_car_id) != cars_before.end())return {{map, score, NEED_TO_CYCLE_CAR_MOVE}};
+        //  edge cond - cycle moves
+        if (cars_before.find(other_car_id) != cars_before.end())return {{map, INT16_MAX, NEED_TO_CYCLE_CAR_MOVE}};
         if (info.have_safe_place(other_car_id)) {
             for (auto safe_place: info.get_safe_places(other_car_id))
                 if (is_road_free(map, car_pos, safe_place, info.get_car_orient(other_car_id))) {
@@ -548,9 +589,9 @@ all_paths(int **map, int height, int width, CarsInfo info, int X, int Y, Directi
                             other_car_orient == VERTICAL ?
                             abs(car_pos.first - safe_place.first) : abs(car_pos.second - safe_place.second);
                     Direction other_car_dir = other_car_orient == VERTICAL ?
-                                              car_pos.first < safe_place.first ? LEFT : RIGHT :
-                                              car_pos.second < safe_place.second ? UP : DOWN;
-                    _make_move(map, car_pos.first, car_pos.second, other_car_dir, other_car_L, other_car_id);
+                                              car_pos.first < safe_place.first ? RIGHT : LEFT :
+                                              car_pos.second < safe_place.second ? DOWN : UP;
+                    _make_move(map, car_pos.first, car_pos.second, other_car_dir, other_car_L);
                     list_moves.push_back(
                             "" + std::to_string(car_pos.first) + " " + std::to_string(car_pos.second) + " " +
                             get_char(other_car_dir) + " " + std::to_string(other_car_L)
@@ -561,8 +602,98 @@ all_paths(int **map, int height, int width, CarsInfo info, int X, int Y, Directi
 
         }
     }
+//    CAN BE OPTIMALIZED
     cars_to_move.clear();
     cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
+//    END
+    //  road is cleared;
+    if (cars_to_move.empty()) {
+        _make_move(map, X, Y, dir, L);
+        list_moves.push_back(
+                "" + std::to_string(X) + " " + std::to_string(Y) + " " + get_char(dir) + " " + std::to_string(L)
+        );
+        score++;
+        return {{map, score, list_moves, GOOD}};
+    }
+
+// ruchy do oczysczenia drogi
+    std::list<triplet> available_moves_to_clear_road;
+    for (auto car_pos: cars_to_move) {
+        pair hit_point = get_hit_point(map, X, Y, car_pos, info);
+        for (auto elem: get_possible_moves(map, height, width, car_pos.first, car_pos.second,
+                                           hit_point, info)) {
+            available_moves_to_clear_road.push_back({elem.first, elem.second, car_pos});
+        }
+    }
+
+    std::list<MapScored> tmp_result;
+    std::list<MapScored> result;
+    for (auto move_to_clear: available_moves_to_clear_road) {
+        tmp_result.splice(tmp_result.end(),
+                          all_paths(map_copy(map, height, width), height, width, info, move_to_clear.car_pos.first,
+                                    move_to_clear.car_pos.second, move_to_clear.dir, move_to_clear.L, score,
+                                    {list_moves}, moves, {cars_before})
+        );
+    }
+    for (auto tmp: tmp_result) {
+        if (tmp.state == GOOD) {
+            result.splice(result.end(),
+                          all_paths(tmp.map, height, width, info, X,
+                                    Y, dir, L, score,
+                                    {tmp.moves_list}, moves, {cars_before})
+            );
+        } else {
+            clear_map(tmp.map, height);
+            tmp.moves_list.clear();
+        }
+    }
+    tmp_result.clear();
+    int new_X, new_Y, new_L;
+    score++;
+    for (auto move_pair: get_no_collision_moves(map, X, Y, info)) {
+        int **new_map = map_copy(map, height, width);
+        std::list<std::string> new_list_moves = {list_moves};
+        _make_move(new_map, X, Y, move_pair.first, move_pair.second);
+        new_list_moves.push_back("" + std::to_string(X) + " " + std::to_string(Y) + " " +
+                                 get_char(move_pair.first) + " " + std::to_string(move_pair.second));
+        new_L = dir == move_pair.first ? L - move_pair.second : L + move_pair.second;
+        if (info.get_car_orient(map[Y][X]) == VERTICAL) {
+            new_Y = Y;
+            new_X = move_pair.first == LEFT ? X - move_pair.second : X + move_pair.second;
+        } else {
+            new_X = X;
+            new_Y = move_pair.first == UP ? Y - move_pair.second : Y + move_pair.second;
+        }
+
+        for (auto move_to_clear: available_moves_to_clear_road) {
+            tmp_result.splice(tmp_result.end(),
+                              all_paths(map_copy(new_map, height, width), height, width, info,
+                                        move_to_clear.car_pos.first,
+                                        move_to_clear.car_pos.second, move_to_clear.dir, move_to_clear.L, score,
+                                        {new_list_moves}, moves, {cars_before})
+            );
+        }
+        clear_map(new_map, height);
+        new_list_moves.clear();
+    }
+        for (auto tmp: tmp_result) {
+            if (tmp.state == GOOD) {
+                result.splice(result.end(),
+                              all_paths(tmp.map, height, width, info, X,
+                                        Y, dir, L, score,
+                                        {tmp.moves_list}, moves, {cars_before})
+                );
+//                if (tmp.map != nullptr) throw std::runtime_error("this should be cleared??");
+                tmp.moves_list.clear();
+            } else {
+                clear_map(tmp.map, height);
+                tmp.moves_list.clear();
+            }
+        }
+
+    clear_map(map, height);
+    list_moves.clear();
+    return result;
 }
 
 
@@ -606,14 +737,22 @@ int main(int argc, char *argv[]) {
     print_map(map, height, width);
     info.print_save_places();
     std::cout << "\033[0m";
-    std::list<MapScored> start_root;
-
-    start_root.emplace_back(map, 0);
+    auto results = all_paths(map, height, width, info, start_pos->first, start_pos->second, dir_to_move, L - 1, 0, {},
+                             moves, {});
+    std::list<MapScored> res;
+    for (auto result: results) {
+        if (result.state == GOOD) {
+            std::cout << "------------------------" << std::endl;
+            std::cout << "\033[34m" << result.score << "\033[0m" << std::endl;
+            for (const auto &move: result.moves_list)
+                std::cout << "\033[34m" << move << "\033[0m" << std::endl;
+//            std::cout << move << std::endl;
+        }
+        clear_map(result.map, height);
+        result.moves_list.clear();
+    }
     delete start_pos;
-//    std::cout << "\033[34m" << (std::get<1>(res)) << "\033[0m" << std::endl;
-//    for (const auto &move: res.moves_list)
-//        std::cout << "\033[34m" << move << "\033[0m" << std::endl;
-//        std::cout << move << std::endl;
+
     if (map != nullptr)
         clear_map(map, height);
 }
