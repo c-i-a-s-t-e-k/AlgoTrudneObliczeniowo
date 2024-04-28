@@ -3,8 +3,8 @@
 #include <list>
 #include <stdexcept>
 #include <string>
-#include <set>
-#include <map>
+#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 enum Orientation {
@@ -12,18 +12,29 @@ enum Orientation {
     HORIZONTAL
 };
 
-class map_scored {
+enum PathState {
+    GOOD,
+    NOT_ENOUGH_MOVES,
+    NEED_TO_CYCLE_CAR_MOVE
+};
+
+class MapScored {
 public:
     int **map;
     int score;
     std::list<std::string> moves_list;
+    PathState state;
 
 public:
-    map_scored(int **map, int initial_score, std::list<std::string> other_move_list) : map(map), score(initial_score) {
+    MapScored(int **map, int initial_score, std::list<std::string> other_move_list, PathState state) : map(map),
+                                                                                                       score(initial_score),
+                                                                                                       state(state) {
         moves_list.splice(moves_list.begin(), other_move_list);
     }
 
-    map_scored(int **map, int initial_score) : map(map), score(initial_score) {}
+    MapScored(int **map, int initial_score, PathState state) : map(map),
+                                                               score(initial_score),
+                                                               state(state) {}
 };
 
 
@@ -31,6 +42,10 @@ class pair {
 public:
     int first;
     int second;
+
+    int get(int **map) {
+        return map[second][first];
+    }
 
     pair(int first, int second) {
         this->first = first;
@@ -56,11 +71,11 @@ public:
     }
 };
 
-class cars_info {
+class CarsInfo {
 private:
-    std::map<int, Orientation> cars_orientation;
-    std::map<int, int> car_lengths;
-    std::map<int, std::list<pair>> safe_palaces;
+    std::unordered_map<int, Orientation> cars_orientation;
+    std::unordered_map<int, int> car_lengths;
+    std::unordered_map<int, std::list<pair>> safe_palaces;
 
     static int car_len(Orientation orient, int X, int Y, int **map) {
         int car_id = map[Y][X];
@@ -93,10 +108,18 @@ public:
         return car_lengths[car_id];
     }
 
+    bool have_safe_place(int car_id) {
+        return !safe_palaces[car_id].empty();
+    }
+
+    std::list<pair> get_safe_places(int car_id) {
+        return std::list{this->safe_palaces[car_id]};
+    }
+
     void add_cars(int **map, int height, int width) {
-        std::map<int, std::set<int>> car_on_horizontal_line;
-        std::map<int, std::set<int>> car_on_vertical_line;
-        std::set<int> cars;
+        std::unordered_map<int, std::unordered_set<int>> car_on_horizontal_line;
+        std::unordered_map<int, std::unordered_set<int>> car_on_vertical_line;
+        std::unordered_set<int> cars;
         int car_id;
         Orientation car_orient;
 //        calculating cars orient and car len
@@ -114,7 +137,9 @@ public:
                 }
             }
 //        calculating cars safe places == places where no car can make a collision with that car
-        std::vector<std::vector<std::set<int>>> presence_table(height - 2, std::vector<std::set<int>>(width - 2));
+        std::vector<std::vector<std::unordered_set<int>>> presence_table(height - 2,
+                                                                         std::vector<std::unordered_set<int>>(
+                                                                                 width - 2));
         for (int y_ = 0; y_ < height - 2; y_++) {
             for (int x_ = 0; x_ < width - 2; x_++) {
                 for (auto id: car_on_vertical_line[x_ + 1])
@@ -133,12 +158,12 @@ public:
                     car_id = *presence_table[y_][x_].begin();
                     if (cars_orientation[car_id] == VERTICAL)
                         for (int x = x_ + 1; flag && x < x_ + car_lengths[car_id]; x++) {
-                            flag = flag && x<width - 2&&
+                            flag = flag && x < width - 2 &&
                                    (presence_table[y_][x].size() == 1 && *presence_table[y_][x].begin() == car_id);
                         }
                     else
                         for (int y = y_ + 1; flag && y < y_ + car_lengths[car_id]; y++) {
-                            flag = flag && y < height -2 &&
+                            flag = flag && y < height - 2 &&
                                    (presence_table[y][x_].size() == 1 && *presence_table[y][x_].begin() == car_id);
                         }
                     if (flag) safe_palaces[car_id].emplace_back(x_ + 1, y_ + 1);
@@ -313,7 +338,8 @@ int **map_copy(int **map_source, int height, int width) {
     return map;
 }
 
-pair get_car_to_move(int **map, int X, int Y, Direction dir, int L, cars_info info) {
+std::vector<pair> get_cars_to_move(int **map, int X, int Y, Direction dir, int L, CarsInfo info) {
+    std::vector<pair> res;
     int car_id = map[Y][X];
     auto iterator = get_iterator(dir);
     int curr_place_id;
@@ -329,14 +355,29 @@ pair get_car_to_move(int **map, int X, int Y, Direction dir, int L, cars_info in
         if (curr_place_id == -2)
             throw std::runtime_error("car hit obstacle");
         set_car_pos(X, Y, info.get_car_orient(map[Y][X]), map);
-        return {X, Y};
+        res.emplace_back(X, Y);
     }
-    return {-1, -1};
+    return res;
+}
+
+bool is_road_free(int **map, pair start, pair end, Orientation orient) {
+    int car_id = map[start.second][start.first];
+    int a;
+    if (orient == VERTICAL) {
+        a = start.first < end.first ? 1 : -1;
+        for (int i = start.first; i <= end.first; i += a)
+            if (map[i][start.second] != 0 && map[i][start.second] != car_id) return false;
+    } else {
+        a = start.second < end.second ? 1 : -1;
+        for (int i = start.second; i <= end.second; i += a)
+            if (map[i][start.first] != 0 && map[i][start.first] != car_id) return false;
+    }
+    return true;
 }
 
 // can optimize
 std::list<pair_dir_int> get_possible_moves(
-        int **map, int height, int width, int X, int Y, pair hit_point, cars_info info
+        int **map, int height, int width, int X, int Y, pair hit_point, CarsInfo info
 ) {
     int car_id = map[Y][X];
     Orientation orient = info.get_car_orient(car_id);
@@ -450,7 +491,7 @@ void _make_move(int **map, int X, int Y, Direction dir, int L, int car_id) {
     }
 }
 
-pair get_hit_point(int **map, int X, int Y, pair next_car, cars_info info) {
+pair get_hit_point(int **map, int X, int Y, pair next_car, CarsInfo info) {
     Orientation prev_orient = info.get_car_orient(map[Y][X]);
     Orientation next_orient = info.get_car_orient(map[next_car.second][next_car.first]);
     if (prev_orient == next_orient) throw std::runtime_error("you will try do invalid moves");
@@ -489,6 +530,41 @@ void fix_car_pos(int **map, int height, int width, int &X, int &Y, Direction &di
     }
 }
 
+std::list<MapScored>
+all_paths(int **map, int height, int width, CarsInfo info, int X, int Y, Direction dir, int L, int score,
+          std::list<std::string> list_moves, int moves, std::unordered_set<int> cars_before) {
+    auto cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
+
+//    sprawdzenie czy jakieś auto  da się przesunąć na "bezpieczne miejsce"
+    for (auto car_pos: cars_to_move) {
+        int other_car_id = car_pos.get(map);
+//        edge cond - cycle moves
+        if (cars_before.find(other_car_id) != cars_before.end())return {{map, score, NEED_TO_CYCLE_CAR_MOVE}};
+        if (info.have_safe_place(other_car_id)) {
+            for (auto safe_place: info.get_safe_places(other_car_id))
+                if (is_road_free(map, car_pos, safe_place, info.get_car_orient(other_car_id))) {
+                    Orientation other_car_orient = info.get_car_orient(other_car_id);
+                    int other_car_L =
+                            other_car_orient == VERTICAL ?
+                            abs(car_pos.first - safe_place.first) : abs(car_pos.second - safe_place.second);
+                    Direction other_car_dir = other_car_orient == VERTICAL ?
+                                              car_pos.first < safe_place.first ? LEFT : RIGHT :
+                                              car_pos.second < safe_place.second ? UP : DOWN;
+                    _make_move(map, car_pos.first, car_pos.second, other_car_dir, other_car_L, other_car_id);
+                    list_moves.push_back(
+                            "" + std::to_string(car_pos.first) + " " + std::to_string(car_pos.second) + " " +
+                            get_char(other_car_dir) + " " + std::to_string(other_car_L)
+                    );
+                    score++;
+                    break;
+                }
+
+        }
+    }
+    cars_to_move.clear();
+    cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
+}
+
 
 int main(int argc, char *argv[]) {
     int width, height, moves;
@@ -499,7 +575,7 @@ int main(int argc, char *argv[]) {
     int L;
     pair *start_pos = new pair(0, 0);
     Orientation start_orient;
-    cars_info info;
+    CarsInfo info;
     int **map = create_map(map_str, height, width, start_pos, start_orient);
     info.add_cars(map, height, width);
     Direction dir_to_move;
@@ -530,7 +606,7 @@ int main(int argc, char *argv[]) {
     print_map(map, height, width);
     info.print_save_places();
     std::cout << "\033[0m";
-    std::list<map_scored> start_root;
+    std::list<MapScored> start_root;
 
     start_root.emplace_back(map, 0);
     delete start_pos;
