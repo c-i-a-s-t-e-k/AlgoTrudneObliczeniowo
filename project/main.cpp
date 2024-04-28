@@ -120,7 +120,7 @@ public:
     }
 
     std::list<pair> get_safe_places(int car_id) {
-        return std::list{this->safe_palaces[car_id]};
+        return {this->safe_palaces[car_id]};
     }
 
     void add_cars(int **map, int height, int width) {
@@ -336,6 +336,7 @@ void clear_map(int **map, int height) {
 
 int **map_copy(int **map_source, int height, int width) {
     int **map = new int *[height];
+    if (map_source == nullptr) throw std::runtime_error("you try to copy cleared map");
     for (int i = 0; i < height; i++) {
         map[i] = new int[width];
         for (int j = 0; j < width; j++) {
@@ -370,14 +371,16 @@ std::vector<pair> get_cars_to_move(int **map, int X, int Y, Direction dir, int L
 
 bool is_road_free(int **map, pair start, pair end, Orientation orient) {
     int car_id = map[start.second][start.first];
-    int a;
+    int s, e;
     if (orient == VERTICAL) {
-        a = start.first < end.first ? 1 : -1;
-        for (int i = start.first; i <= end.first; i += a)
+        s = start.first < end.first ? start.first : end.first;
+        e = start.first < end.first ? end.first : start.first;
+        for (int i = s; i <= e; i++)
             if (map[start.second][i] != 0 && map[start.second][i] != car_id) return false;
     } else {
-        a = start.second < end.second ? 1 : -1;
-        for (int i = start.second; i <= end.second; i += a)
+        s = start.second < end.second ? start.second : end.second;
+        e = start.second < end.second ? end.second : start.second;
+        for (int i = s; i <= e; i++)
             if (map[i][start.first] != 0 && map[i][start.first] != car_id) return false;
     }
     return true;
@@ -566,7 +569,7 @@ std::list<pair_dir_int> get_no_collision_moves(int **map, int X, int Y, CarsInfo
 std::list<MapScored>
 all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direction dir, int L, int score,
           std::list<std::string> list_moves, int moves, std::unordered_set<int> cars_before) {
-
+    int car_id = map[Y][X];
     auto cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
     cars_before.insert(map[Y][X]);
 
@@ -580,9 +583,14 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
     for (auto car_pos: cars_to_move) {
         int other_car_id = car_pos.get(map);
         //  edge cond - cycle moves
-        if (cars_before.find(other_car_id) != cars_before.end())return {{map, INT16_MAX, NEED_TO_CYCLE_CAR_MOVE}};
+        if (cars_before.find(other_car_id) != cars_before.end()) {
+            clear_map(map, height);
+            list_moves.clear();
+            return {{map, INT16_MAX, NEED_TO_CYCLE_CAR_MOVE}};
+        }
         if (info.have_safe_place(other_car_id)) {
-            for (auto safe_place: info.get_safe_places(other_car_id))
+            for (auto safe_place: info.get_safe_places(other_car_id)) {
+//                print_map(map,height,width);
                 if (is_road_free(map, car_pos, safe_place, info.get_car_orient(other_car_id))) {
                     Orientation other_car_orient = info.get_car_orient(other_car_id);
                     int other_car_L =
@@ -599,6 +607,7 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
                     score++;
                     break;
                 }
+            }
 
         }
     }
@@ -616,7 +625,7 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
         return {{map, score, list_moves, GOOD}};
     }
 
-// ruchy do oczysczenia drogi
+
     std::list<triplet> available_moves_to_clear_road;
     for (auto car_pos: cars_to_move) {
         pair hit_point = get_hit_point(map, X, Y, car_pos, info);
@@ -635,21 +644,22 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
                                     {list_moves}, moves, {cars_before})
         );
     }
+
     for (auto tmp: tmp_result) {
         if (tmp.state == GOOD) {
-            result.splice(result.end(),
-                          all_paths(tmp.map, height, width, info, X,
-                                    Y, dir, L, score,
-                                    {tmp.moves_list}, moves, {cars_before})
-            );
-        } else {
+            if (tmp.score < moves)
+                result.splice(result.end(),
+                              all_paths(map_copy(tmp.map, height, width), height, width, info, X,
+                                        Y, dir, L, tmp.score,
+                                        {tmp.moves_list}, moves, {cars_before})
+                );
             clear_map(tmp.map, height);
             tmp.moves_list.clear();
         }
     }
+
     tmp_result.clear();
     int new_X, new_Y, new_L;
-    score++;
     for (auto move_pair: get_no_collision_moves(map, X, Y, info)) {
         int **new_map = map_copy(map, height, width);
         std::list<std::string> new_list_moves = {list_moves};
@@ -669,30 +679,29 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
             tmp_result.splice(tmp_result.end(),
                               all_paths(map_copy(new_map, height, width), height, width, info,
                                         move_to_clear.car_pos.first,
-                                        move_to_clear.car_pos.second, move_to_clear.dir, move_to_clear.L, score,
+                                        move_to_clear.car_pos.second, move_to_clear.dir, move_to_clear.L, score + 1,
                                         {new_list_moves}, moves, {cars_before})
             );
+        }
+        for (auto tmp: tmp_result) {
+            if (tmp.state == GOOD) {
+                if (tmp.score < moves)
+                    result.splice(result.end(),
+                                  all_paths(map_copy(tmp.map, height, width), height, width, info, new_X,
+                                            new_Y, dir, new_L, tmp.score,
+                                            {tmp.moves_list}, moves, {cars_before})
+                    );
+//                clear_map(tmp.map, height);
+//                tmp.moves_list.clear();
+            }
         }
         clear_map(new_map, height);
         new_list_moves.clear();
     }
-        for (auto tmp: tmp_result) {
-            if (tmp.state == GOOD) {
-                result.splice(result.end(),
-                              all_paths(tmp.map, height, width, info, X,
-                                        Y, dir, L, score,
-                                        {tmp.moves_list}, moves, {cars_before})
-                );
-//                if (tmp.map != nullptr) throw std::runtime_error("this should be cleared??");
-                tmp.moves_list.clear();
-            } else {
-                clear_map(tmp.map, height);
-                tmp.moves_list.clear();
-            }
-        }
 
-    clear_map(map, height);
-    list_moves.clear();
+
+//    clear_map(map, height);
+//    list_moves.clear();
     return result;
 }
 
@@ -732,27 +741,25 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    std::cout << "\033[34m";
-    std::cout << width << " " << height << " " << moves << std::endl;
-    print_map(map, height, width);
-    info.print_save_places();
-    std::cout << "\033[0m";
+//    std::cout << "\033[34m";
+//    std::cout << width << " " << height << " " << moves << std::endl;
+//    print_map(map, height, width);
+////    info.print_save_places();
+//    std::cout << "\033[0m";
     auto results = all_paths(map, height, width, info, start_pos->first, start_pos->second, dir_to_move, L - 1, 0, {},
                              moves, {});
     std::list<MapScored> res;
     for (auto result: results) {
-        if (result.state == GOOD) {
-            std::cout << "------------------------" << std::endl;
-            std::cout << "\033[34m" << result.score << "\033[0m" << std::endl;
+        if (result.state == GOOD && result.score <= moves) {
+//            std::cout << "------------------------" << std::endl;
+//            std::cout << "\033[34m" << result.score << "\033[0m" << std::endl;
             for (const auto &move: result.moves_list)
-                std::cout << "\033[34m" << move << "\033[0m" << std::endl;
-//            std::cout << move << std::endl;
+//                std::cout << "\033[34m" << move << "\033[0m" << std::endl;
+            std::cout << move << std::endl;break;
         }
-        clear_map(result.map, height);
-        result.moves_list.clear();
+//        clear_map(result.map, height);
+//        result.moves_list.clear();
     }
     delete start_pos;
 
-    if (map != nullptr)
-        clear_map(map, height);
 }
