@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
+std::list<int**> list_of_maps;
+
 enum Orientation {
     VERTICAL,
     HORIZONTAL
@@ -44,7 +46,7 @@ public:
     int first;
     int second;
 
-    int get(int **map) {
+    int get(int **map) const {
         return map[second][first];
     }
 
@@ -143,7 +145,7 @@ public:
                     else car_on_horizontal_line[y].insert(car_id);
                 }
             }
-//        calculating cars safe places == places where no car can make a collision with that car
+//        calculating cars safe places == places where no car can Makefile a collision with that car
         std::vector<std::vector<std::unordered_set<int>>> presence_table(height - 2,
                                                                          std::vector<std::unordered_set<int>>(
                                                                                  width - 2));
@@ -180,7 +182,7 @@ public:
     }
 
     void print_save_places() {
-        for (auto l: safe_palaces) {
+        for (const auto& l: safe_palaces) {
             std::cout << l.first << "\t\t";
             for (auto safe_place: l.second)
                 std::cout << safe_place.first << ',' << safe_place.second << "  ";
@@ -192,15 +194,6 @@ public:
 void set_car_pos(int &X, int &Y, Orientation orientation, int **map);
 
 void print_map(int **map, int height, int width);
-
-void print_status(int **map, int height, int width, const std::list<std::string> &moves_list) {
-    printf("------------------------------\n");
-    for (const auto &move: moves_list)
-        std::cout << "\033[31m" << move << "\033[0m" << " :: ";
-    printf("\n");
-    print_map(map, height, width);
-    printf("------------------------------\n");
-}
 
 Direction oposite_direction(Direction direction) {
     switch (direction) {
@@ -343,6 +336,7 @@ int **map_copy(int **map_source, int height, int width) {
             map[i][j] = map_source[i][j];
         }
     }
+    list_of_maps.push_back(map);
     return map;
 }
 
@@ -518,30 +512,6 @@ void set_car_pos(int &X, int &Y, Orientation orientation, int **map) {
         while (map[Y][X - 1] == car_id) X--;
 }
 
-void fix_car_pos(int **map, int height, int width, int &X, int &Y, Direction &dir, int &L, int car_id) {
-    int prev_X = X;
-    int prev_Y = Y;
-    Orientation orient = get_orient(dir);
-    auto tmp = find_car(map, height, width, car_id, {X, Y}, orient);
-    X = tmp.first;
-    Y = tmp.second;
-    int prev_axis = orient == VERTICAL ? prev_X : prev_Y;
-    int actual_axis = orient == VERTICAL ? X : Y;
-    if (prev_axis != actual_axis) {
-        if (prev_axis < actual_axis) {
-            if (dir == LEFT || dir == UP) L -= (actual_axis - prev_axis);
-            else L += (actual_axis - prev_axis);
-        } else {
-            if (dir == LEFT || dir == UP) L += (actual_axis - prev_axis);
-            else L -= (actual_axis - prev_axis);
-        }
-        if (L < 0) {
-            dir = oposite_direction(dir);
-            L *= -1;
-        }
-    }
-}
-
 std::list<pair_dir_int> get_no_collision_moves(int **map, int X, int Y, CarsInfo &info) {
     int car_id = map[Y][X];
     int car_len = info.get_car_len(car_id);
@@ -563,20 +533,46 @@ std::list<pair_dir_int> get_no_collision_moves(int **map, int X, int Y, CarsInfo
         while (map[++i + car_len - 1][X] == 0)
             moves.emplace_back(DOWN, i - Y);
     }
+//    int a;
+//    for(auto move: moves){
+//        if(orientation == VERTICAL){
+//            a = move.first == LEFT ? -1 : 1;
+//            if(map[Y][X + a* move.second] == -2) throw std::runtime_error("wrong move!!");
+//        } else{
+//            a = move.first == UP ? -1 : 1;
+//            if(map[Y + a* move.second][X] == -2) throw std::runtime_error("wrong move!!");
+//        }
+//    }
     return moves;
+}
+
+int get_destination_id(int **map, int height, int width, int X, int Y, Direction dir, int L){
+    if(get_orient(dir) == VERTICAL){
+        X = dir == RIGHT ? X += L : X -= L;
+    } else{
+        Y = dir == DOWN ? Y += L : Y -= L;
+    }
+    if(X < 0 || width <= X || Y < 0 || height <= Y)
+        return -2;
+    else return map[Y][X];
 }
 
 std::list<MapScored>
 all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direction dir, int L, int score,
           std::list<std::string> list_moves, int moves, std::unordered_set<int> cars_before) {
     int car_id = map[Y][X];
+    if(car_id==0){
+        return {{map, INT16_MAX, CAN_NOT_MOVE_HERE}};
+    }
+    set_car_pos(X, Y, info.get_car_orient(car_id),map);
+    if(get_destination_id(map, height, width, X, Y, dir, L) == -2) {
+        return {{map, INT16_MAX, CAN_NOT_MOVE_HERE}};
+    }
     auto cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
     cars_before.insert(map[Y][X]);
 
     //  not enough moves to clear road
     if (cars_to_move.size() + score > moves) {
-        clear_map(map, height);
-        list_moves.clear();
         return {{map, INT16_MAX, NOT_ENOUGH_MOVES}};
     }
     //    sprawdzenie czy jakieś auto  da się przesunąć na "bezpieczne miejsce"
@@ -584,8 +580,6 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
         int other_car_id = car_pos.get(map);
         //  edge cond - cycle moves
         if (cars_before.find(other_car_id) != cars_before.end()) {
-            clear_map(map, height);
-            list_moves.clear();
             return {{map, INT16_MAX, NEED_TO_CYCLE_CAR_MOVE}};
         }
         if (info.have_safe_place(other_car_id)) {
@@ -653,8 +647,6 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
                                         Y, dir, L, tmp.score,
                                         {tmp.moves_list}, moves, {cars_before})
                 );
-            clear_map(tmp.map, height);
-            tmp.moves_list.clear();
         }
     }
 
@@ -691,17 +683,11 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
                                             new_Y, dir, new_L, tmp.score,
                                             {tmp.moves_list}, moves, {cars_before})
                     );
-//                clear_map(tmp.map, height);
-//                tmp.moves_list.clear();
             }
         }
-        clear_map(new_map, height);
-        new_list_moves.clear();
     }
+    cars_before.clear();
 
-
-//    clear_map(map, height);
-//    list_moves.clear();
     return result;
 }
 
@@ -753,13 +739,15 @@ int main(int argc, char *argv[]) {
         if (result.state == GOOD && result.score <= moves) {
 //            std::cout << "------------------------" << std::endl;
 //            std::cout << "\033[34m" << result.score << "\033[0m" << std::endl;
+            std::cout << result.score << std::endl;
             for (const auto &move: result.moves_list)
 //                std::cout << "\033[34m" << move << "\033[0m" << std::endl;
             std::cout << move << std::endl;break;
         }
-//        clear_map(result.map, height);
-//        result.moves_list.clear();
+    }
+    clear_map(map, height);
+    for(auto other_map: list_of_maps) {
+        clear_map(other_map, height);
     }
     delete start_pos;
-
 }
