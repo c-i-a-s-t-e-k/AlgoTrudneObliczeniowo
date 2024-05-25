@@ -6,8 +6,9 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include <sstream>
 
-std::list<int**> list_of_maps;
+std::list<int **> list_of_maps;
 
 enum Orientation {
     VERTICAL,
@@ -182,7 +183,7 @@ public:
     }
 
     void print_save_places() {
-        for (const auto& l: safe_palaces) {
+        for (const auto &l: safe_palaces) {
             std::cout << l.first << "\t\t";
             for (auto safe_place: l.second)
                 std::cout << safe_place.first << ',' << safe_place.second << "  ";
@@ -546,13 +547,13 @@ std::list<pair_dir_int> get_no_collision_moves(int **map, int X, int Y, CarsInfo
     return moves;
 }
 
-int get_destination_id(int **map, int height, int width, int X, int Y, Direction dir, int L){
-    if(get_orient(dir) == VERTICAL){
+int get_destination_id(int **map, int height, int width, int X, int Y, Direction dir, int L) {
+    if (get_orient(dir) == VERTICAL) {
         X = dir == RIGHT ? X += L : X -= L;
-    } else{
+    } else {
         Y = dir == DOWN ? Y += L : Y -= L;
     }
-    if(X < 0 || width <= X || Y < 0 || height <= Y)
+    if (X < 0 || width <= X || Y < 0 || height <= Y)
         return -2;
     else return map[Y][X];
 }
@@ -561,11 +562,11 @@ std::list<MapScored>
 all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direction dir, int L, int score,
           std::list<std::string> list_moves, int moves, std::unordered_set<int> cars_before) {
     int car_id = map[Y][X];
-    if(car_id==0){
+    if (car_id == 0) {
         return {{map, INT16_MAX, CAN_NOT_MOVE_HERE}};
     }
-    set_car_pos(X, Y, info.get_car_orient(car_id),map);
-    if(get_destination_id(map, height, width, X, Y, dir, L) == -2) {
+    set_car_pos(X, Y, info.get_car_orient(car_id), map);
+    if (get_destination_id(map, height, width, X, Y, dir, L) == -2) {
         return {{map, INT16_MAX, CAN_NOT_MOVE_HERE}};
     }
     auto cars_to_move = get_cars_to_move(map, X, Y, dir, L, info);
@@ -694,11 +695,15 @@ all_paths(int **map, int height, int width, CarsInfo &info, int X, int Y, Direct
 
 int main(int argc, char *argv[]) {
     int width, height, moves;
-    width = atoi(argv[1]);
-    height = atoi(argv[2]);
-    moves = atoi(argv[3]);
-    char **map_str = &argv[4];
+    std::cin >> width >> height >> moves;
+    char **map_str = new char *[height];
+    for (int i = 0; i < height; i++)
+        map_str[i] = new char[width];
+    for (int i = 0; i < height; i++)
+        for (int j = 0; j < width; j++)
+            std::cin >> map_str[i][j];;
     int L;
+//    std::cout<<"*"<<std::endl;
     pair *start_pos = new pair(0, 0);
     Orientation start_orient;
     CarsInfo info;
@@ -736,18 +741,29 @@ int main(int argc, char *argv[]) {
                              moves, {});
     std::list<MapScored> res;
     for (auto result: results) {
+
         if (result.state == GOOD && result.score <= moves) {
 //            std::cout << "------------------------" << std::endl;
 //            std::cout << "\033[34m" << result.score << "\033[0m" << std::endl;
-            std::cout << result.score << std::endl;
-            for (const auto &move: result.moves_list)
+            std::cout << result.moves_list.size() << std::endl;
+            for (const auto &move: result.moves_list) {
 //                std::cout << "\033[34m" << move << "\033[0m" << std::endl;
-            std::cout << move << std::endl;break;
+                if (move == result.moves_list.back()) {
+                    std::string str = move;
+                    std::istringstream iss(str);
+                    int x, z;
+                    char y;
+                    int v;
+                    iss >> x >> z >> y >> v;
+                    std::cout << x << " " << z << " " << y << " " << v + 2 << std::endl;
+                } else
+                    std::cout << move << std::endl;
+            }
+//            break;
         }
     }
     clear_map(map, height);
-    for(auto other_map: list_of_maps) {
+    for (auto other_map: list_of_maps) {
         clear_map(other_map, height);
     }
-    delete start_pos;
 }
